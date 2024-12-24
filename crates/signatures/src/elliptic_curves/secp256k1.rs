@@ -3,7 +3,7 @@ use num_bigint::BigUint;
 use super::curve::{Curve, CurvePoint};
 
 /// Implementation of the secp256k1 elliptic curve
-struct Secp256k1;
+pub struct Secp256k1;
 
 impl Curve for Secp256k1 {
     fn generator_point(&self) -> CurvePoint {
