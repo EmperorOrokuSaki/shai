@@ -1,63 +1,71 @@
 use num_bigint::{BigUint, RandBigInt};
 use rand::thread_rng;
 
-pub struct CurvePoint {
-    pub x: BigUint,
-    pub y: BigUint,
+use super::arithmetic::add_two_points;
+
+#[derive(Clone)]
+pub enum CurvePoint {
+    Affine { x: BigUint, y: BigUint },
+    Infinity,
 }
 
-struct Secp256k1;
+impl CurvePoint {
+    /// Check if the point is the point at infinity
+    pub fn is_infinity(&self) -> bool {
+        matches!(self, CurvePoint::Infinity)
+    }
+}
 
+/// Trait representing an elliptic curve
 pub trait Curve {
+    /// Returns the generator point of the curve
     fn generator_point(&self) -> CurvePoint;
+    /// Returns the prime modulus \( p \)
     fn prime_modulus(&self) -> BigUint;
+    /// Returns the curve parameter \( a \)
     fn a(&self) -> BigUint;
+    /// Returns the curve parameter \( b \)
     fn b(&self) -> BigUint;
+    /// Returns the order of the group
     fn order(&self) -> BigUint;
+    /// Returns the identity point (point at infinity)
+    fn identity(&self) -> CurvePoint;
+
+    /// Generate a random secret key
     fn generate_secret_key(&self) -> BigUint {
         let mut rng = thread_rng();
         let order = self.order();
         rng.gen_biguint_below(&order)
     }
-}
 
-impl Curve for Secp256k1 {
-    fn generator_point(&self) -> CurvePoint {
-        CurvePoint {
-            x: BigUint::parse_bytes(
-                b"55066263022277343669578718895168534326250603453777594175500187360389116729240",
-                16,
-            )
-            .unwrap(),
-            y: BigUint::parse_bytes(
-                b"32670510020758816978083085130507043184471273380659243275938904335757337482424",
-                16,
-            )
-            .unwrap(),
+    /// Calculates the public key by scalar multiplication of the secret key with the generator point.
+    ///
+    /// Uses the double-and-add method to perform scalar multiplication:
+    /// 1. Start with the identity point as the result.
+    /// 2. For each bit of the secret key:
+    ///    - If the bit is set, add the current generator multiple to the result.
+    ///    - Double the current generator multiple.
+    ///
+    /// # Requirements
+    /// This implementation requires that the `Curve` trait implementation is `Sized`.
+    fn calculate_public_key(&self, secret_key: BigUint) -> CurvePoint
+    where
+        Self: Sized, // Add a `Sized` constraint to ensure `self` is a statically sized type
+    {
+        let mut result = self.identity(); // Start with the identity element (point at infinity)
+        let mut current = self.generator_point(); // Start with the generator point (G)
+
+        // Iterate over each bit of the secret key
+        for i in 0..secret_key.bits() {
+            // Check if the i-th bit is set
+            if ((secret_key.clone() >> i) & BigUint::from(1u8)) == BigUint::from(1u8) {
+                // Add the current point to the result
+                result = add_two_points(result, current.clone(), self);
+            }
+            // Double the current point
+            current = add_two_points(current.clone(), current, self);
         }
-    }
 
-    fn prime_modulus(&self) -> BigUint {
-        BigUint::parse_bytes(
-            b"115792089237316195423570985008687907853269984665640564039457584007908834671663",
-            16,
-        )
-        .unwrap()
-    }
-
-    fn a(&self) -> BigUint {
-        BigUint::from(0_u32)
-    }
-
-    fn b(&self) -> BigUint {
-        BigUint::from(7_u32)
-    }
-
-    fn order(&self) -> BigUint {
-        BigUint::parse_bytes(
-            b"115792089237316195423570985008687907852837564279074904382605163141518161494337",
-            16,
-        )
-        .unwrap()
+        result
     }
 }
