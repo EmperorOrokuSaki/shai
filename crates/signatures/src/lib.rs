@@ -1,1 +1,1 @@
-mod ecdsa;
+mod elliptic_curves;
